@@ -1,0 +1,1 @@
+char b[]="123\n456\n789";p=79;char*l;main(c){puts(b);for(l="01245689:04815926:05:258";*l;l+=3)if((b[*l-48]&b[l[1]-48]&b[l[2]-48])==p)return;p^=23;do c=getchar()-49;while(c<0|c>8|b[c+c/3]&64);b[c+c/3]=p;main(c);}
