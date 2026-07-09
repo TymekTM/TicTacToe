@@ -1,1 +1,1 @@
-char b[]="123\n456\n789";p=79;char*l;main(c){puts(b);for(l="01245689:04815926:05:258";*l;l+=3)if((b[*l-48]&b[l[1]-48]&b[l[2]-48])==p)return;p^=23;do c=getchar()-49;while(c<0|c>8|b[c+c/3]&64);b[c+c/3]=p;main(c);}
+char*l,b[]="123\n456\n789";p=79;main(c,d){puts(b);for(l="1Ia4:@5?";*l;)if((b[d=(c=*l++-48)/6]&b[d+c%6]&b[d+c%6*2])==p)return;do c=getchar()-49;while(c<0|b[c+c/3]-c-49);b[c+c/3]=p^=23;main();}
