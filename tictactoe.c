@@ -1,1 +1,1 @@
-char*l,b[]="123\n456\n789";p=79;main(c,d){puts(b);for(l="1Ia4:@5?";*l;)if((b[d=(c=*l++-48)/6]&b[d+c%6]&b[d+c%6*2])==p)return;do c=getchar()-49;while(c<0|b[d=c+c/3]-c-49);b[d]=p^=23;main();}
+char*l,b[]="123\n456\n789";p=79;main(c,d){puts(b);for(l="!A";d=*l++;)if((b[c=d/8]&b[c+d%8]&b[c+d%8*2])==p)return;for(;c=getchar()-49,c<0|b[d=c+c/3]-c-49;);main(b[d]=p^=23);}
