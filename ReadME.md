@@ -6,7 +6,7 @@ In Poland we call it **"Kółko i Krzyżyk"** - Circle and Cross.
 
 ### Previous version - code shaped as Kółko i Krzyżyk (O and X)
 
-This was the original 229-char C++ version, with the code itself shaped as those two symbols - a circle (O) and a cross (X). It has since been beaten repeatedly: scroll down for the **175-char** version.
+This was the original 229-char C++ version, with the code itself shaped as those two symbols - a circle (O) and a cross (X). It has since been beaten repeatedly: scroll down for the **158-byte** version.
 
 ```cpp
              char b[]
@@ -33,21 +33,13 @@ This was the original 229-char C++ version, with the code itself shaped as those
      !puts(b);                 }}
 ```
 
-## The code (175 chars, C)
+## The code (158 bytes, C)
 
 ```c
-char*l,b[]="123\n456\n789";p=79;main(c,d){puts(b);for(l="!A";d=*l++;)if((b[c=d/8]&b[c+d%8]&b[c+d%8*2])==p)return;for(;c=getchar()-49,b[d=c+c/3]-c-49;);main(b[d]=p^=23);}
+x,d;char*l,b[]="123\n456\n789";main(p){puts(b);for(d=6;--d;)if(d-2&&x&x>>d&x>>d*2)return;for(;!(l=index(b,getchar()|32)););x|=1<<l-b+(p&16);main(*l=89-p%13);}
 ```
 
-The listing above is the exact `tictactoe.c`. The win table holds the eight raw bytes `01 21 41 04 0C 14 05 13` - only `21` (`!`) and `41` (`A`) are printable, so this page may display or copy the other six unfaithfully. Clone the repo for the real file, or use the printable form:
-
-### Printable form (177 chars, identical behavior on tested platforms)
-
-```c
-char*l,b[]="123\n456\n789";p=79;main(c,d){puts(b);for(l="1Ia4:@5?";d=*l++;)if((b[c=d/6-8]&b[c+d%6]&b[c+d%6*2])==p)return;for(;c=getchar()-49,b[d=c+c/3]-c-49;);main(b[d]=p^=23);}
-```
-
-The only differences: the win table carries a `+48` printable bias (start decodes as `d/6-8` instead of `d/8`).
+Fully printable ASCII, 158 bytes without the trailing newline - no raw-byte tricks left. Run it without command-line arguments: the first turn is seeded from `argc == 1`, so extra arguments corrupt the first move.
 
 Compile and run:
 
@@ -56,18 +48,40 @@ gcc -std=gnu89 tictactoe.c
 ./a.out
 ```
 
-`-std=gnu89` enables the implicit-int globals and K&R `main` that make it this short. MSVC 2022 also accepts it unchanged (`cl /nologo tictactoe.c`) - no flags, no warnings.
+`-std=gnu89` buys the implicit-int globals, K&R `main` and the undeclared `index` call - GCC recognizes `index` as a builtin and types its return as a pointer. `index` is POSIX/BSD and absent from MSVC's CRT, so on MSVC 2022 force a two-line shim before the source:
+
+```
+cl /nologo /FImsvc.h tictactoe.c
+```
+
+with `msvc.h` containing `#define index strchr` and `char*strchr();`. The declaration is not cosmetic: an implicit `int` return truncates the 64-bit pointer on Win64 and crashes the game.
+
+### Variants (same idea, same validation)
+
+- `strchr` instead of `index`: **159 bytes** - one byte for portability across libcs.
+- Strict input `for(;d=getchar(),d/16-3||!(l=index(b,d)););`: **167 bytes** (**168** with `strchr`) - `d/16-3` admits only bytes 48-63, so every non-digit byte, including the control-byte aliases below, is rejected.
 
 ## How it works
 
 - **Board is the display.** `b = "123\n456\n789"` is both the state and the grid `puts` prints each turn.
-- **One declaration, two globals.** `char*l,b[]` declares the win-scan pointer and the board together.
-- **Input loop as a bare `for`.** `for(;c=getchar()-49,b[d=c+c/3]-c-49;);` - the comma operator sequences the read before the test, so the old `do...while` body disappears. A move `1..9` becomes `c` via `getchar()-49`; its board index is `c+c/3` (hopping the two `\n`), computed once into `d` inside the condition and reused for the write. A cell is free iff it still equals its digit `c+49`, so `b[d]-c-49` is the occupied check.
-- **Win table packed to 8 raw bytes.** Each of the 8 lines is a `(start, step)` pair encoded as one byte `start*8+step`, with no printable bias - so decoding needs no subtraction: `start = d/8`, `step = d%8`, cells `start`, `start+step`, `start+2*step`. The multiplier must exceed the largest step (5) and must not make any line encode to `0x0A`, since a raw newline cannot appear inside a string literal: 8 satisfies both, while 6 turns column 2 into exactly 10. The table byte is loaded straight into `d`, and the loop guard is the byte itself, so no separate sentinel test. `b[..]&b[..]&b[..] == p` only when all three hold the current player (AND of identical marks is the mark; mixing X/O/digits clears the high bits).
-- **Toggle, write and recurse in one expression.** `main(b[d]=p^=23)` flips the player (`'O'(79)` ↔ `'X'(88)`, since `79 ^ 88 == 23`), writes the mark, and passes the result as `main`'s first argument - which the recursive call never reads before overwriting. The win-check at the top of each call then tests whoever just moved.
-- **Tail recursion.** `main()` calls itself for the next turn; `return;` stops on a win.
+- **One bitboard for both players.** `x` holds X on the board's own offsets `{0,1,2,4,5,6,8,9,10}` (3 and 7 are the newlines) and O sixteen bits higher. The sector gap must stay 16: it exceeds twice the largest stride, and the never-set gap bits (3, 7, 11, 15, ...) kill both row wraparound and any line bridging the two sectors. With a gap of 15, stride-5 triples reach across the sectors and fabricate wins.
+- **Win check without a table.** `for(d=6;--d;)if(d-2&&x&x>>d&x>>d*2)return;` walks the strides d = 5, 4, 3, 1: `x & x>>d & x>>2d` is nonzero exactly when three bits spaced by d are all set. Stride 1 is the rows, 4 the columns, 5 the main diagonal (0, 5, 10), 3 the anti-diagonal (2, 5, 8); stride 2 must be skipped, since 0, 2, 4 is not a line. The check sits at the top of every call, so it always tests the player who just moved - an earlier opponent win would have returned one call sooner.
+- **Turn, mark and sector in `main`'s argument.** `p` starts as `argc`, i.e. 1. `89-p%13` maps `1 -> 88 ('X')`, `88 -> 79 ('O')` and `79 -> 88`, producing both the mark to write and the next call's `p`; `p&16` picks the bitboard sector (`88 & 16 = 16`, O's half; `79 & 16 = 0`, X's half).
+- **Free cell by search, not arithmetic.** `index(b, getchar()|32)` finds the typed digit in `b` itself - a digit stays there only until its cell is taken, so a hit proves the cell is free, hands back the write pointer `l`, and `l-b` doubles as the bit number for `x|=1<<l-b+(p&16)`. A miss (occupied cell, letter, newline, tab) returns NULL and the loop reads on. `|32` folds letter case so stray letters never match; the only leak is control bytes 17-25 (Ctrl-Q through Ctrl-Y), which alias the digits 1-9 - the strict variant above closes it.
+- **Toggle, write and recurse in one expression.** `main(*l=89-p%13)` writes the mark through the found pointer and passes it as the next call's `p`.
+- **Tail recursion.** `main()` calls itself for the next turn; `return;` stops on a win. A draw or EOF waits or spins, exactly like every previous version.
 
-For digit input (normal play) the cell check is exact. Newlines, EOF and other junk bytes fall through to an out-of-bounds read just past the board, and the loop only exits if that byte happens to equal the typed character - dropping the earlier `c<0` guard bets 4 chars on this never happening. Measured on gcc 13 (Linux) and MSVC 14.44 (Windows): the bytes in question are `124`/`0` and `0`/`0`, zero phantom accepts across all junk bytes 1-48, and the full scenario battery is byte-identical to the 189-char build at `-O0` and `-O2` on gcc and on MSVC `x64`. A different linker layout could still place a matching byte there, which would turn one junk key into an out-of-bounds write - that is the bet. The win scan likewise writes `c` and reads it back across the `&` chain. Two dead ends worth recording: a raw newline cannot appear inside a string literal (it terminates the source line - only `\n` works), and `exit()` cannot ride an expression (`&&`/`||` need scalar operands, and gcc's builtin knows its arity).
+## Validation
+
+The rewrite was exhaustively validated by its author on GCC 15.2 (Linux x86-64) and independently re-verified on gcc 13.3 (WSL) and MSVC 14.44 (Windows x64): all 255,168 terminal game histories, each replayed twice - once plain, once with junk bytes, re-entered occupied cells and LF/CR interleaved - for 510,336 scenarios per build at `-O0`, `-O2` and `-Os`, zero failures, also clean under AddressSanitizer and UndefinedBehaviorSanitizer. A 22-scenario battery (all eight win lines for X, six for O, rejection cases, draw, blocked lines) is byte-identical to the 175-char build's output. Raw MSVC builds fail on the missing `index` symbol (LNK2019); with the shim header above the game builds and plays correctly.
+
+## Dead ends, kept for the record
+
+- A raw newline cannot appear inside a string literal, and `exit()` cannot ride an `&&`/`||` expression - gcc's builtin knows its arity (both from the 175-char era).
+- A raw `{1,3,4,5}` stride table measures longer than the loop it replaces (45 vs 42 bytes for the win block).
+- Sector gap 15 lets stride-5 triples bridge the sectors into false wins; `p%13` in place of `p&16` overlaps them the same way.
+- Dropping `|32` makes `index` accept the marks X/O and even the board newlines as moves - shorter, broken.
+- Still open: a shorter stride generator, fusing the win scan with the recursion, and bit-parallel stride detection via multiply-constants - nothing verified below 158 yet.
 
 ## Progression
 
@@ -77,8 +91,9 @@ For digit input (normal play) the cell check is exact. Newlines, EOF and other j
 | intermediate (C, `gcc -std=gnu89`) | 2026-07-09 | GLM 5.2                        | 211   | robust input, single `puts` per turn   |
 | intermediate (C, `gcc -std=gnu89`) | 2026-07-09 | GLM 5.2 + Claude Fable 5       | 191   | 8-byte win table, folded toggle        |
 | intermediate (C, `gcc -std=gnu89`) | 2026-07-09 | GLM 5.2                        | 189   | cell index stashed in `d`, reused for the write |
-| intermediate (C, `gcc -std=gnu89`) | 2026-08-20 | GLM 5.3 (ZCode)         | 181   | comma-driven input `for`, guard-as-data win loop, write folded into the recursion argument |
-| intermediate (C, `gcc -std=gnu89`) | 2026-08-20 | GLM 5.3 (ZCode)         | 179   | bias-free raw win table (`start*8+step`), decode `d/8`/`d%8` with no subtraction |
-| this version (C, `gcc -std=gnu89`) | 2026-08-21 | Ox-alpha                | **175** | input `c<0` guard dropped - junk rejection now rests on an out-of-bounds byte never matching |
+| intermediate (C, `gcc -std=gnu89`) | 2026-08-20 | GLM 5.3 (ZCode)                | 181   | comma-driven input `for`, guard-as-data win loop, write folded into the recursion argument |
+| intermediate (C, `gcc -std=gnu89`) | 2026-08-20 | GLM 5.3 (ZCode)                | 179   | bias-free raw win table (`start*8+step`), decode `d/8`/`d%8` with no subtraction |
+| intermediate (C, `gcc -std=gnu89`) | 2026-08-21 | Ox-alpha                       | 175   | input `c<0` guard dropped - junk rejection now rests on an out-of-bounds byte never matching |
+| this version (C, `gcc -std=gnu89`) | 2026-09-10 | GPT 6 Astra                    | **158** | one bitboard for both players, four-stride win loop, turn in `main` arg, `index()` free-cell search |
 
-The original 229-char C++ version was written with Claude Opus 4.6. The 211-char step was GLM 5.2. The 191-char version was shortened by **GLM 5.2** using ideas contributed by **Claude Fable 5** (packed `(start,step)` win table, digit-identity cell check, folded player toggle). The 189-char trim is **GLM 5.2**: the board index is computed once into `d` during the input check and reused for the write, dropping a duplicated `c+c/3`. The 181-char trim is **GLM 5.3 (ZCode)**: the `do...while` collapses into a bare `for` whose condition reads the key via a comma expression, the win-table byte itself becomes the loop guard, and the move write rides the recursive call as `main(b[d]=p^=23)`. The 179-char trim is also **GLM 5.3 (ZCode)**: dropping the `+48` printable bias and encoding lines as `start*8+step` makes the win-table decode subtraction-free (`d/8`, `d%8`). The 175-char trim, also **Ox-alpha**, removes the input `c<0` guard: junk rejection now rests on the out-of-bounds byte never matching the typed character, verified empirically on both compilers.
+The original 229-char C++ version was written with Claude Opus 4.6. The 211-char step was GLM 5.2. The 191-char version was shortened by **GLM 5.2** using ideas contributed by **Claude Fable 5** (packed `(start,step)` win table, digit-identity cell check, folded player toggle). The 189-char trim is **GLM 5.2**: the board index is computed once into `d` during the input check and reused for the write, dropping a duplicated `c+c/3`. The 181-char trim is **GLM 5.3 (ZCode)**: the `do...while` collapses into a bare `for` whose condition reads the key via a comma expression, the win-table byte itself becomes the loop guard, and the move write rides the recursive call as `main(b[d]=p^=23)`. The 179-char trim is also **GLM 5.3 (ZCode)**: dropping the `+48` printable bias and encoding lines as `start*8+step` makes the win-table decode subtraction-free (`d/8`, `d%8`). The 175-char trim, also **Ox-alpha**, removes the input `c<0` guard: junk rejection now rests on the out-of-bounds byte never matching the typed character, verified empirically on both compilers. The 158-byte rewrite is **GPT 6 Astra** (external coding agent): both players share one bitboard, the eight-entry win table collapses into a four-stride shift loop, the turn rides `main`'s argument seeded from `argc`, and the free-cell check becomes an `index()` search of the board itself. Independently re-verified - byte-identical 22-scenario battery against the 175 build, the 510,336-scenario exhaustive harness clean on gcc 13.3 under sanitizers, and the MSVC shim build - by **GLM 5.3 (ZCode)**.
