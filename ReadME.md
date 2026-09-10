@@ -81,6 +81,9 @@ The rewrite was exhaustively validated by its author on GCC 15.2 (Linux x86-64) 
 - A raw `{1,3,4,5}` stride table measures longer than the loop it replaces (45 vs 42 bytes for the win block).
 - Sector gap 15 lets stride-5 triples bridge the sectors into false wins; `p%13` in place of `p&16` overlaps them the same way.
 - Dropping `|32` makes `index` accept the marks X/O and even the board newlines as moves - shorter, broken.
+- Measured rewrites that do not beat 158 (2026-09-10, all compiled and gameplay-identical): folding the stride-2 skip into the loop condition `for(d=6;d=--d-(d==2);)` = 162; a `"\5\4\3\1"` stride table walked by `l` = 165; a fully unrolled win expression = 173; `p^=23` toggle designs with a pre-toggle sector mapping = 159-160; a `for(;;)` loop in place of recursion = 163.
+- Three exact 158-byte ties, all gameplay-identical: `d` as `main`'s second parameter (the garbage `argv` value is always overwritten before use), the bit insert folded into the recursive call as a second argument (`main(*l=89-p%13,x|=1<<l-b+(p&16))` - legal despite unsequenced arguments, since no argument writes an object another reads or writes), and the same via the comma operator.
+- Analytic kills: multiply-constant win detection cannot discriminate a sum of 2 from 3 bits at the carry level without extra masking, and bit 26 + 11 overflows `int`, forcing a `(long)` cast; transposing the board to `"147\n258\n369"` leaves the stride set `{1,3,4,5}` unchanged; a sector gap below 16 always admits a false line (gap 11: stride-1 `(9,10,11)`, 12: stride-4 `(4,8,12)`, 13: stride-5 `(8,13,18)`, 14: stride-4 `(6,10,14)`, 15: stride-5 `(5,10,15)`), so 16 is minimal.
 - Still open: a shorter stride generator, fusing the win scan with the recursion, and bit-parallel stride detection via multiply-constants - nothing verified below 158 yet.
 
 ## Progression
