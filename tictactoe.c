@@ -1,1 +1,1 @@
-x,p;char*l,b[]="123\n456\n789";main(d){for(puts(b),p^=9;!(l=d?--d&5&&x&x>>d&x<<d:index(b,getchar()|32)););d||main(6,*l=79+p,x|=1<<l-b+p*2);}
+x,y;char*l,b[]="O	123\n	456\n	789";main(d){for(puts(b);!(l=d?x&x>>d&x<<d--:index(b,getchar()|32)););l<b||main(6,*l=*b^=23,x^=y|=1<<l-b);}
